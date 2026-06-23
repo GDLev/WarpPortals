@@ -1,0 +1,93 @@
+bstats: true
+language: en_us
+
+teleport:
+  # 0 disables the timer. Any value above 0 makes /warp wait before teleporting.
+  delay-seconds: 3
+  cancel-on-move: true
+  title: true
+  actionbar: false
+  # Use none to disable any sound.
+  sounds:
+    complete:
+      sound: ENTITY_EXPERIENCE_ORB_PICKUP
+      volume: 1.0
+      pitch: 2.0
+    cancel:
+      sound: BLOCK_NOTE_BLOCK_BASS
+      volume: 1.0
+      pitch: 0.6
+    countdown:
+      sound: minecraft:ui.button.click
+      volume: 1.0
+      pitch: 2.0
+
+commands:
+  # If false, /warp <name> opens a portal instead of teleporting directly.
+  direct-warp-teleport: true
+
+custom-commands:
+  # Example:
+  # spawn:
+  #   aliases:
+  #     - hub
+  #   warp: spawn
+  #   mode: direct # direct or portal
+  #   delay-seconds: 0 # 0 disables the teleport timer for this command.
+  #   cooldown-seconds: 0 # 0 disables the cooldown before this command can be used again.
+  #   message: ""
+  #   cost:
+  #     enabled: false
+  #     type: xp
+  #     amount: 0
+  #     item: DIAMOND
+
+portal:
+  # block: do not open a new portal while the player already has an active portal.
+  # replace: close the player's old portal and open the new one.
+  protection-mode: block
+  material: TINTED_GLASS
+  width: 1.25
+  height: 2.5
+  depth: 0.1875
+  distance-from-player: 1.5
+  start-height: 0.01
+  animation-ticks: 10
+  hold-ticks: 60
+  # Use none to disable any sound.
+  sounds:
+    open:
+      sound: BLOCK_PORTAL_TRIGGER
+      volume: 0.7
+      pitch: 1.6
+    close:
+      sound: BLOCK_PORTAL_TRAVEL
+      volume: 0.4
+      pitch: 1.8
+  teleport:
+    only-owner: true
+    # If true, players can only travel from the entrance portal to the warp destination.
+    one-way: false
+    # Closes the portal pair only after its creator goes through it.
+    close-after-owner-use: false
+    check-interval-ticks: 2
+    cooldown-ticks: 40
+    activation-depth: 0.7
+
+storage:
+  yml:
+    file: storage.yml
+
+warp-defaults:
+  # Copied into storage.yml when a new warp is created. Edit each warp there later.
+  costs:
+    teleport:
+      enabled: false
+      type: xp
+      amount: 0
+      item: DIAMOND
+    portal:
+      enabled: false
+      type: xp
+      amount: 0
+      item: DIAMOND

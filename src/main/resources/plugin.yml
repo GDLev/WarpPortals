@@ -1,0 +1,57 @@
+name: WarpPortals
+version: '0.1'
+main: dev.gdlev.warpPortals.WarpPortals
+api-version: '1.19'
+authors: [ GDLev ]
+description: Warp teleportation through animated portals.
+commands:
+  warpportals:
+    aliases: [wp]
+    description: WarpPortals administrative command.
+    usage: /warpportals <help|version|reload|setwarp|delwarp|cost>
+  warp:
+    description: Teleport to a warp, or open a portal when direct teleport is disabled.
+    usage: /warp <name>
+  portal:
+    description: Open a portal to a warp.
+    usage: /portal <name>
+permissions:
+  warpportals.admin:
+    description: Grants all WarpPortals permissions.
+    default: op
+    children:
+      warpportals.command.help: true
+      warpportals.command.version: true
+      warpportals.command.reload: true
+      warpportals.command.portal: true
+      warpportals.command.teleport: true
+      warpportals.command.setwarp: true
+      warpportals.command.delwarp: true
+      warpportals.command.cost: true
+  warpportals.command.help:
+    description: Allows using /warp help.
+    default: true
+  warpportals.command.version:
+    description: Allows using /warp version.
+    default: true
+  warpportals.command.reload:
+    description: Allows reloading the plugin.
+    default: op
+  warpportals.command.portal:
+    description: Allows opening warp portals.
+    default: true
+  warpportals.command.teleport:
+    description: Allows teleporting directly to warps.
+    default: true
+  warpportals.command.setwarp:
+    description: Allows creating warps.
+    default: op
+  warpportals.command.delwarp:
+    description: Allows deleting warps.
+    default: op
+  warpportals.command.cost:
+    description: Allows changing warp costs.
+    default: op
+  warpportals.cost.bypass:
+    description: Allows bypassing warp costs.
+    default: false

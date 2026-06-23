@@ -1,0 +1,41 @@
+# OS
+.DS_Store
+Thumbs.db
+
+# Java
+*.class
+*.log
+hs_err_pid*
+replay_pid*
+
+# Gradle
+.gradle/
+build/
+
+# Build artifacts
+*.jar
+!gradle/wrapper/gradle-wrapper.jar
+
+# IntelliJ IDEA
+.idea/
+*.iml
+*.ipr
+*.iws
+out/
+
+# Eclipse
+.classpath
+.project
+.settings/
+
+# VS Code
+.vscode/
+
+# Minecraft test servers
+run/
+logs/
+crash-reports/
+world/
+world_nether/
+world_the_end/
+plugins/

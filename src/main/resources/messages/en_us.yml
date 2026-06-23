@@ -1,0 +1,41 @@
+messages:
+  reload: "<#e23a6f>WarpPortals <gray>has been reloaded."
+  info: "<#e23a6f>WarpPortals <gray>v{version} by <#e23a6f>GDLev"
+  player-only: "<#e23a6f>Only players can use this command."
+  no-permission: "<#e23a6f>You do not have permission to use this command."
+  usage-setwarp: '<dark_gray>» <#e23a6f>/warpportals setwarp <#e23a6f>[name] <gray>- Create a new warp'
+  usage-warp: '<dark_gray>» <#e23a6f>/warp <#e23a6f>[destination] <gray>- Teleport to a warp'
+  usage-portal: '<dark_gray>» <#e23a6f>/portal <#e23a6f>[destination] <gray>- Open a portal to a warp'
+  usage-delwarp: '<dark_gray>» <#e23a6f>/warpportals delwarp <#e23a6f>[name] <gray>- Delete a warp'
+  usage-cost: '<dark_gray>» <#e23a6f>/warpportals cost <#e23a6f>[name] [teleport|portal] [none|xp|level|vault|item] [amount] [item] <gray>- Set a warp cost'
+  invalid-item: "<#e23a6f>Unknown item: {item}."
+  cost-updated: "<gray>Updated <#e23a6f>{method} <gray>cost for <#e23a6f>{name}<gray>: <#e23a6f>{type} {cost}<gray>."
+  warp-saved: "<gray>Warp <#e23a6f>{name} <gray>has been saved."
+  warp-teleported: "<gray>Teleported to <#e23a6f>{name}<gray>."
+  warp-deleted: "<gray>Warp <#e23a6f>{name} <gray>has been deleted."
+  warp-not-found: "<#e23a6f>Warp {name} was not found."
+  warp-world-missing: "<#e23a6f>Warp {name} points to a world that is not loaded."
+  storage-error: "<#e23a6f>A storage error occurred. Check the console for details."
+  cost-not-enough: "<#e23a6f>You need {cost} to use this warp."
+  vault-unavailable: "<#e23a6f>Vault economy is not available."
+  teleport-started: "<gray>Teleporting to <#e23a6f>{name} <gray>in <#e23a6f>{time}s<gray>. Do not move."
+  teleport-already-pending: "<#e23a6f>You are already teleporting there."
+  teleport-cancelled-move: "<#e23a6f>Teleport cancelled because you moved."
+  teleport-title: "<#e23a6f>Teleporting"
+  teleport-subtitle: "<gray>Do not move for <#e23a6f>{time}s"
+  teleport-actionbar: "<gray>Teleporting in <#e23a6f>{time}s"
+  custom-command-cooldown: "<#e23a6f>You can use this command again in {time}s."
+  portal-already-active: "<#e23a6f>You already have an active portal."
+
+help:
+  lines:
+    - "<dark_gray><strikethrough>                                                             "
+    - "<dark_gray>» <#da0149>/warp <#e86691>[destination] <gray>- Teleport to a warp"
+    - "<dark_gray>» <#da0149>/portal <#e86691>[destination] <gray>- Open a portal to a warp"
+    - "<dark_gray>» <#da0149>/warpportals help <#e86691> <gray>- Show the help menu"
+    - "<dark_gray>» <#da0149>/warpportals version <#e86691> <gray>- Show the plugin version"
+    - "<dark_gray>» <#da0149>/warpportals reload <#e86691> <gray>- Reload the plugin configuration"
+    - "<dark_gray>» <#da0149>/warpportals setwarp <#e86691>[name] <gray>- Create a new warp"
+    - "<dark_gray>» <#da0149>/warpportals delwarp <#e86691>[name] <gray>- Delete a warp"
+    - "<dark_gray>» <#da0149>/warpportals cost <#e86691>[name] [teleport|portal] [type] [amount] <gray>- Set a warp cost"
+    - "<dark_gray><strikethrough>                                                             "
