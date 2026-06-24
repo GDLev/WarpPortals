@@ -1,11 +1,11 @@
 messages:
   reload: "<#e23a6f>WarpPortals <gray>zostal przeladowany."
-  info: "<#e23a6f>WarpPortals <gray>v{version}"
+  info: "<#e23a6f>WarpPortals <gray>v{version} by <#e23a6f>GDLev"
   player-only: "<#e23a6f>Tylko gracz moze uzyc tej komendy."
   no-permission: "<#e23a6f>Nie masz uprawnien do uzycia tej komendy."
   usage-setwarp: '<dark_gray>» <#e23a6f>/warpportals setwarp <#e23a6f>[nazwa] <gray>- Utworz nowego warpa'
-  usage-warp: '<dark_gray>» <#e23a6f>/warp <#e23a6f>[ce] <gray>- Teleportuj sie do warpa'
-  usage-portal: '<dark_gray>» <#e23a6f>/portal <#e23a6f>[ce] <gray>- Otworz portal do warpa'
+  usage-warp: '<dark_gray>» <#e23a6f>/warp <#e23a6f>[cel] <gray>- Teleportuj sie do warpa'
+  usage-portal: '<dark_gray>» <#e23a6f>/portal <#e23a6f>[cel] <gray>- Otworz portal do warpa'
   usage-delwarp: '<dark_gray>» <#e23a6f>/warpportals delwarp <#e23a6f>[nazwa] <gray>- Usun warpa'
   usage-cost: '<dark_gray>» <#e23a6f>/warpportals cost <#e23a6f>[nazwa] [teleport|portal] [none|xp|level|vault|item] [ilosc] [item] <gray>- Ustaw koszt warpa'
   usage-setperm: '<dark_gray>» <#e23a6f>/warpportals setperm <#e23a6f>[nazwa] [uprawnienie|reset] <gray>- Ustaw uprawnienie warpa'
