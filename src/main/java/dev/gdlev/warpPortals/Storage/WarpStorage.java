@@ -25,6 +25,7 @@ public final class WarpStorage {
     }
 
     public void reload() {
+        ensurePermissionKeys();
     }
 
     public void saveWarp(String name, Location location) throws IOException {
@@ -67,6 +68,20 @@ public final class WarpStorage {
         return true;
     }
 
+    public boolean setWarpPermission(String name, String permission) throws IOException {
+        String normalizedName = normalizeName(name);
+        FileConfiguration configuration = storage.loadYamlStorage();
+        String warpPath = "warps." + normalizedName;
+
+        if (!configuration.contains(warpPath)) {
+            return false;
+        }
+
+        configuration.set(warpPath + ".permission", permission == null ? "" : permission);
+        storage.saveYamlStorage(configuration);
+        return true;
+    }
+
     public List<String> listWarpNames() {
         return listWarpNamesFromYaml();
     }
@@ -81,6 +96,7 @@ public final class WarpStorage {
         configuration.set(path + ".z", warp.z());
         configuration.set(path + ".yaw", warp.yaw());
         configuration.set(path + ".pitch", warp.pitch());
+        configuration.set(path + ".permission", warp.permission());
         saveCost(configuration, path + ".costs.teleport", warp.teleportCost());
         saveCost(configuration, path + ".costs.portal", warp.portalCost());
 
@@ -103,6 +119,7 @@ public final class WarpStorage {
                 configuration.getDouble(path + ".z"),
                 (float) configuration.getDouble(path + ".yaw"),
                 (float) configuration.getDouble(path + ".pitch"),
+                configuration.getString(path + ".permission", ""),
                 loadCost(configuration, path + ".costs.teleport", "warp-defaults.costs.teleport"),
                 loadCost(configuration, path + ".costs.portal", "warp-defaults.costs.portal")
         ));
@@ -130,6 +147,36 @@ public final class WarpStorage {
         }
 
         return new ArrayList<>(section.getKeys(false));
+    }
+
+    private void ensurePermissionKeys() {
+        FileConfiguration configuration = storage.loadYamlStorage();
+        ConfigurationSection section = configuration.getConfigurationSection("warps");
+
+        if (section == null) {
+            return;
+        }
+
+        boolean changed = false;
+
+        for (String warpName : section.getKeys(false)) {
+            String path = "warps." + warpName + ".permission";
+
+            if (!configuration.isSet(path)) {
+                configuration.set(path, "");
+                changed = true;
+            }
+        }
+
+        if (!changed) {
+            return;
+        }
+
+        try {
+            storage.saveYamlStorage(configuration);
+        } catch (IOException exception) {
+            plugin.getLogger().severe("Could not update warp permissions in storage: " + exception.getMessage());
+        }
     }
 
     private void saveCost(FileConfiguration configuration, String path, WarpCost cost) {

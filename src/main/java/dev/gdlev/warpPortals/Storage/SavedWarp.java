@@ -16,6 +16,7 @@ public record SavedWarp(
         double z,
         float yaw,
         float pitch,
+        String permission,
         WarpCost teleportCost,
         WarpCost portalCost
 ) {
@@ -28,9 +29,14 @@ public record SavedWarp(
                 location.getZ(),
                 location.getYaw(),
                 location.getPitch(),
+                "",
                 teleportCost,
                 portalCost
         );
+    }
+
+    public boolean canUse(org.bukkit.entity.Player player) {
+        return permission == null || permission.isBlank() || player.hasPermission(permission);
     }
 
     public Optional<Location> toLocation() {

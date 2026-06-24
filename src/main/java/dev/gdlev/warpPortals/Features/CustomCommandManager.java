@@ -147,20 +147,27 @@ public final class CustomCommandManager {
 
         try {
             plugin.getWarpStorage().findWarp(settings.warpName()).ifPresentOrElse(warp -> {
-                if (warp.toLocation().isEmpty()) {
+                if (!warp.canUse(player)) {
+                    player.sendMessage(plugin.lang("messages.warp-no-permission"));
+                    return;
+                }
+
+                var location = warp.toLocation();
+
+                if (location.isEmpty()) {
                     player.sendMessage(plugin.lang("messages.warp-world-missing", "{name}", settings.warpName()));
                     return;
                 }
 
                 if (settings.mode().equals("portal")) {
-                    openPortal(player, settings, warp.toLocation().get());
+                    openPortal(player, settings, location.get());
                     return;
                 }
 
                 plugin.getTeleportTimer().start(
                         player,
                         settings.warpName(),
-                        warp.toLocation().get(),
+                        location.get(),
                         settings.cost(),
                         successMessage(settings),
                         settings.delaySeconds()
@@ -176,6 +183,16 @@ public final class CustomCommandManager {
     }
 
     private void openPortal(Player player, CustomCommandSettings settings, Location exitBottom) {
+        Location entranceCenter = ShowPortal.centerInFrontOfPlayer(plugin, player);
+
+        if (plugin.getPortalManager().isBelowMinimumDistance(entranceCenter, exitBottom)) {
+            player.sendMessage(plugin.lang(
+                    "messages.portal-too-close",
+                    "{distance}", plugin.getPortalManager().minimumPortalDistanceDisplay()
+            ));
+            return;
+        }
+
         if (!plugin.getPortalManager().preparePortalCreation(player)) {
             return;
         }
@@ -184,7 +201,6 @@ public final class CustomCommandManager {
             return;
         }
 
-        Location entranceCenter = ShowPortal.centerInFrontOfPlayer(plugin, player);
         float entranceRotation = ShowPortal.rotationToFace(entranceCenter, player.getLocation());
         float exitRotation = ShowPortal.rotationFromYaw(exitBottom.getYaw());
         BlockDisplay entranceDisplay = ShowPortal.openFacing(plugin, entranceCenter, player.getLocation());

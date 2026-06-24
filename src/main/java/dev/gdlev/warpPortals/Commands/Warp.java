@@ -24,7 +24,7 @@ public class Warp implements CommandExecutor, TabCompleter {
         this.plugin = plugin;
     }
 
-    private final List<String> adminSubcommands = Arrays.asList("help", "reload", "info", "version", "setwarp", "delwarp", "cost");
+    private final List<String> adminSubcommands = Arrays.asList("help", "reload", "version", "setwarp", "delwarp", "cost", "setperm");
     private final List<String> costMethods = Arrays.asList("teleport", "portal");
     private final List<String> costTypes = Arrays.asList("none", "xp", "level", "vault", "item");
 
@@ -60,7 +60,7 @@ public class Warp implements CommandExecutor, TabCompleter {
             return true;
         }
 
-        if (args[0].equalsIgnoreCase("version") || args[0].equalsIgnoreCase("info")) {
+        if (args[0].equalsIgnoreCase("version")) {
             if (!hasPermission(sender, "warpportals.command.version")) return true;
             sender.sendMessage(plugin.lang("messages.info", "{version}", plugin.getDescription().getVersion()));
             return true;
@@ -91,6 +91,11 @@ public class Warp implements CommandExecutor, TabCompleter {
         if (args[0].equalsIgnoreCase("cost")) {
             if (!hasPermission(sender, "warpportals.command.cost")) return true;
             return handleCostCommand(sender, args);
+        }
+
+        if (args[0].equalsIgnoreCase("setperm")) {
+            if (!hasPermission(sender, "warpportals.command.setperm")) return true;
+            return handleSetPermissionCommand(sender, args);
         }
 
         Help.HelpSubcommand(sender, plugin);
@@ -186,6 +191,39 @@ public class Warp implements CommandExecutor, TabCompleter {
         return true;
     }
 
+    private boolean handleSetPermissionCommand(CommandSender sender, String[] args) {
+        if (args.length < 3) {
+            sender.sendMessage(plugin.lang("messages.usage-setperm"));
+            return true;
+        }
+
+        String warpName = args[1].toLowerCase();
+        String permission = args[2].equalsIgnoreCase("reset") ? "" : args[2];
+
+        try {
+            if (!plugin.getWarpStorage().setWarpPermission(warpName, permission)) {
+                sender.sendMessage(plugin.lang("messages.warp-not-found", "{name}", warpName));
+                return true;
+            }
+
+            if (permission.isBlank()) {
+                sender.sendMessage(plugin.lang("messages.permission-reset", "{name}", warpName));
+                return true;
+            }
+
+            sender.sendMessage(plugin.lang(
+                    "messages.permission-updated",
+                    "{name}", warpName,
+                    "{permission}", permission
+            ));
+        } catch (Exception exception) {
+            plugin.getLogger().severe("Could not update permission for warp '" + warpName + "': " + exception.getMessage());
+            sender.sendMessage(plugin.lang("messages.storage-error"));
+        }
+
+        return true;
+    }
+
     @Override
     public List<String> onTabComplete(@NotNull CommandSender sender, @NotNull Command command, @NotNull String alias, String[] args) {
         if (command.getName().equalsIgnoreCase("warp") || command.getName().equalsIgnoreCase("portal")) {
@@ -200,8 +238,12 @@ public class Warp implements CommandExecutor, TabCompleter {
             return complete(args[0], adminSubcommands);
         }
 
-        if (args.length == 2 && (args[0].equalsIgnoreCase("delwarp") || args[0].equalsIgnoreCase("cost"))) {
+        if (args.length == 2 && (args[0].equalsIgnoreCase("delwarp") || args[0].equalsIgnoreCase("cost") || args[0].equalsIgnoreCase("setperm"))) {
             return complete(args[1], plugin.getWarpStorage().listWarpNames());
+        }
+
+        if (args[0].equalsIgnoreCase("setperm") && args.length == 3) {
+            return complete(args[2], Collections.singletonList("reset"));
         }
 
         if (args[0].equalsIgnoreCase("cost")) {

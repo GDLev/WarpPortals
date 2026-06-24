@@ -10,15 +10,30 @@ public class Portal {
         if (sender instanceof Player player) {
             try {
                 plugin.getWarpStorage().findWarp(warpName).ifPresentOrElse(warp -> {
-                    if (warp.toLocation().isEmpty()) {
+                    if (!warp.canUse(player)) {
+                        player.sendMessage(plugin.lang("messages.warp-no-permission"));
+                        return;
+                    }
+
+                    var location = warp.toLocation();
+
+                    if (location.isEmpty()) {
                         player.sendMessage(plugin.lang("messages.warp-world-missing", "{name}", warpName));
                         return;
                     }
 
                     var entranceCenter = ShowPortal.centerInFrontOfPlayer(plugin, player);
                     float entranceRotation = ShowPortal.rotationToFace(entranceCenter, player.getLocation());
-                    var exitBottom = warp.toLocation().get();
+                    var exitBottom = location.get();
                     float exitRotation = ShowPortal.rotationFromYaw(exitBottom.getYaw());
+
+                    if (plugin.getPortalManager().isBelowMinimumDistance(entranceCenter, exitBottom)) {
+                        player.sendMessage(plugin.lang(
+                                "messages.portal-too-close",
+                                "{distance}", plugin.getPortalManager().minimumPortalDistanceDisplay()
+                        ));
+                        return;
+                    }
 
                     if (!plugin.getPortalManager().preparePortalCreation(player)) {
                         return;

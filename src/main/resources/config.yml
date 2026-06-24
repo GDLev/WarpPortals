@@ -51,6 +51,9 @@ portal:
   height: 2.5
   depth: 0.1875
   distance-from-player: 1.5
+  # Minimum distance between the entrance portal and the destination portal.
+  # Set to 0 to disable this check.
+  min-distance: 10
   start-height: 0.01
   animation-ticks: 10
   hold-ticks: 60

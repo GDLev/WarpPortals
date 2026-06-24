@@ -8,7 +8,7 @@ commands:
   warpportals:
     aliases: [wp]
     description: WarpPortals administrative command.
-    usage: /warpportals <help|version|reload|setwarp|delwarp|cost>
+    usage: /warpportals <help|version|reload|setwarp|delwarp|cost|setperm>
   warp:
     description: Teleport to a warp, or open a portal when direct teleport is disabled.
     usage: /warp <name>
@@ -28,6 +28,7 @@ permissions:
       warpportals.command.setwarp: true
       warpportals.command.delwarp: true
       warpportals.command.cost: true
+      warpportals.command.setperm: true
   warpportals.command.help:
     description: Allows using /warp help.
     default: true
@@ -51,6 +52,9 @@ permissions:
     default: op
   warpportals.command.cost:
     description: Allows changing warp costs.
+    default: op
+  warpportals.command.setperm:
+    description: Allows changing warp permissions.
     default: op
   warpportals.cost.bypass:
     description: Allows bypassing warp costs.

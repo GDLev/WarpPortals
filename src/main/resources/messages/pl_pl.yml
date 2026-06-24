@@ -8,12 +8,16 @@ messages:
   usage-portal: '<dark_gray>» <#e23a6f>/portal <#e23a6f>[ce] <gray>- Otworz portal do warpa'
   usage-delwarp: '<dark_gray>» <#e23a6f>/warpportals delwarp <#e23a6f>[nazwa] <gray>- Usun warpa'
   usage-cost: '<dark_gray>» <#e23a6f>/warpportals cost <#e23a6f>[nazwa] [teleport|portal] [none|xp|level|vault|item] [ilosc] [item] <gray>- Ustaw koszt warpa'
+  usage-setperm: '<dark_gray>» <#e23a6f>/warpportals setperm <#e23a6f>[nazwa] [uprawnienie|reset] <gray>- Ustaw uprawnienie warpa'
   invalid-item: "<#e23a6f>Nieznany przedmiot: {item}."
   cost-updated: "<gray>Zmieniono koszt <#e23a6f>{method} <gray>dla <#e23a6f>{name}<gray>: <#e23a6f>{type} {cost}<gray>."
+  permission-updated: "<gray>Zmieniono uprawnienie dla <#e23a6f>{name}<gray>: <#e23a6f>{permission}<gray>."
+  permission-reset: "<gray>Uprawnienie dla <#e23a6f>{name} <gray>zostalo zresetowane."
   warp-saved: "<gray>Warp <#e23a6f>{name} <gray>zostal zapisany."
   warp-teleported: "<gray>Przeteleportowano do <#e23a6f>{name}<gray>."
   warp-deleted: "<gray>Warp <#e23a6f>{name} <gray>zostal usuniety."
   warp-not-found: "<#e23a6f>Warp {name} nie istnieje."
+  warp-no-permission: "<#e23a6f>Nie masz uprawnien do uzycia tego warpa."
   warp-world-missing: "<#e23a6f>Warp {name} wskazuje na niezaczytany swiat."
   storage-error: "<#e23a6f>Wystapil blad zapisu. Sprawdz konsole."
   cost-not-enough: "<#e23a6f>Potrzebujesz {cost} aby uzyc tego warpa."
@@ -26,6 +30,7 @@ messages:
   teleport-actionbar: "<gray>Teleportacja za <#e23a6f>{time}s"
   custom-command-cooldown: "<#e23a6f>Tej komendy mozesz uzyc ponownie za {time}s."
   portal-already-active: "<#e23a6f>Masz juz aktywny portal."
+  portal-too-close: "<#e23a6f>Jestes za blisko celu, aby otworzyc portal. Odsun sie przynajmniej {distance} blokow."
 
 help:
   lines:
@@ -38,4 +43,5 @@ help:
     - "<dark_gray>» <#da0149>/warpportals setwarp <#e86691>[nazwa] <gray>- Utworz nowego warpa"
     - "<dark_gray>» <#da0149>/warpportals delwarp <#e86691>[nazwa] <gray>- Usun warpa"
     - "<dark_gray>» <#da0149>/warpportals cost <#e86691>[nazwa] [teleport|portal] [typ] [ilosc] <gray>- Ustaw koszt warpa"
+    - "<dark_gray>» <#da0149>/warpportals setperm <#e86691>[nazwa] [uprawnienie|reset] <gray>- Ustaw uprawnienie warpa"
     - "<dark_gray><strikethrough>                                                             "

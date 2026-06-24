@@ -106,6 +106,34 @@ public final class PortalManager {
         return false;
     }
 
+    public double minimumPortalDistance() {
+        return Math.max(0.0, plugin.getConfig().getDouble("portal.min-distance", 10.0));
+    }
+
+    public String minimumPortalDistanceDisplay() {
+        double distance = minimumPortalDistance();
+
+        if (distance == Math.floor(distance)) {
+            return String.valueOf((int) distance);
+        }
+
+        return String.format(Locale.US, "%.1f", distance);
+    }
+
+    public boolean isBelowMinimumDistance(Location entranceCenter, Location exitBottom) {
+        double minimumDistance = minimumPortalDistance();
+
+        if (minimumDistance <= 0.0 || entranceCenter.getWorld() == null || exitBottom.getWorld() == null) {
+            return false;
+        }
+
+        if (!entranceCenter.getWorld().equals(exitBottom.getWorld())) {
+            return false;
+        }
+
+        return entranceCenter.distanceSquared(exitBottom) < minimumDistance * minimumDistance;
+    }
+
     private void start() {
         PortalTeleportSettings settings = PortalTeleportSettings.from(plugin);
         currentTick = 0L;
