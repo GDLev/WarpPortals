@@ -1,5 +1,3 @@
-## Features
-
 ![Logo](https://cdn.modrinth.com/data/cached_images/4969527d98d8eafa2fcac37e8be0d74de2b99304.png)
 
 ![Features](https://cdn.modrinth.com/data/cached_images/03f8b5577e60752c7dce75012532f42ef679c35f.png)
