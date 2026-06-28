@@ -11,9 +11,15 @@ import java.lang.reflect.Method;
 public final class CostService {
 
     private final WarpPortals plugin;
+    private VaultBinding cachedVault;
 
     public CostService(WarpPortals plugin) {
         this.plugin = plugin;
+        reload();
+    }
+
+    public void reload() {
+        cachedVault = plugin.getOptimizationSettings().cacheVaultProvider() ? findVault() : null;
     }
 
     public boolean charge(Player player, WarpCost cost) {
@@ -71,29 +77,50 @@ public final class CostService {
 
     private boolean chargeVault(Player player, WarpCost cost) {
         try {
-            Class<?> economyClass = Class.forName("net.milkbowl.vault.economy.Economy");
-            RegisteredServiceProvider<?> registration = plugin.getServer().getServicesManager().getRegistration(economyClass);
+            boolean cacheProvider = plugin.getOptimizationSettings().cacheVaultProvider();
+            VaultBinding binding = cacheProvider ? cachedVault : findVault();
 
-            if (registration == null) {
+            if (cacheProvider && binding == null) {
+                binding = findVault();
+                cachedVault = binding;
+            }
+
+            if (binding == null) {
                 player.sendMessage(plugin.lang("messages.vault-unavailable"));
                 return false;
             }
 
-            Object economy = registration.getProvider();
             double amount = Double.parseDouble(cost.amount());
-            Method has = economyClass.getMethod("has", OfflinePlayer.class, double.class);
-            Method withdraw = economyClass.getMethod("withdrawPlayer", OfflinePlayer.class, double.class);
 
-            if (!(boolean) has.invoke(economy, player, amount)) {
+            if (!(boolean) binding.has().invoke(binding.provider(), player, amount)) {
                 return false;
             }
 
-            withdraw.invoke(economy, player, amount);
+            binding.withdraw().invoke(binding.provider(), player, amount);
             return true;
         } catch (Exception exception) {
             plugin.getLogger().warning("Could not charge Vault cost: " + exception.getMessage());
             player.sendMessage(plugin.lang("messages.vault-unavailable"));
             return false;
+        }
+    }
+
+    private VaultBinding findVault() {
+        try {
+            Class<?> economyClass = Class.forName("net.milkbowl.vault.economy.Economy");
+            RegisteredServiceProvider<?> registration = plugin.getServer().getServicesManager().getRegistration(economyClass);
+
+            if (registration == null) {
+                return null;
+            }
+
+            return new VaultBinding(
+                    registration.getProvider(),
+                    economyClass.getMethod("has", OfflinePlayer.class, double.class),
+                    economyClass.getMethod("withdrawPlayer", OfflinePlayer.class, double.class)
+            );
+        } catch (ReflectiveOperationException exception) {
+            return null;
         }
     }
 
@@ -144,5 +171,8 @@ public final class CostService {
         }
 
         return 9 * level - 158;
+    }
+
+    private record VaultBinding(Object provider, Method has, Method withdraw) {
     }
 }

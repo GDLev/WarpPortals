@@ -1,9 +1,10 @@
 name: WarpPortals
-version: '0.1'
+version: '0.2'
 main: dev.gdlev.warpPortals.WarpPortals
 api-version: '1.19'
 authors: [ GDLev ]
 description: Warp teleportation through animated portals.
+softdepend: [ Vault ]
 commands:
   warpportals:
     aliases: [wp]

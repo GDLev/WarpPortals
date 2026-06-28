@@ -2,30 +2,35 @@ package dev.gdlev.warpPortals.Storage;
 
 import dev.gdlev.warpPortals.Costs.WarpCost;
 import dev.gdlev.warpPortals.Costs.CostType;
+import dev.gdlev.warpPortals.WarpPortals;
 import org.bukkit.Location;
 import org.bukkit.Material;
 import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.configuration.file.FileConfiguration;
-import org.bukkit.plugin.java.JavaPlugin;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
+import java.util.Map;
 import java.util.Optional;
 
 public final class WarpStorage {
 
-    private final JavaPlugin plugin;
+    private final WarpPortals plugin;
     private final StorageHelper storage;
+    private final Map<String, SavedWarp> cachedWarps = new LinkedHashMap<>();
 
-    public WarpStorage(JavaPlugin plugin, StorageHelper storage) {
+    public WarpStorage(WarpPortals plugin, StorageHelper storage) {
         this.plugin = plugin;
         this.storage = storage;
     }
 
     public void reload() {
         ensurePermissionKeys();
+        reloadCache();
     }
 
     public void saveWarp(String name, Location location) throws IOException {
@@ -40,6 +45,11 @@ public final class WarpStorage {
 
     public Optional<SavedWarp> findWarp(String name) {
         String normalizedName = normalizeName(name);
+
+        if (plugin.getOptimizationSettings().cacheWarps()) {
+            return Optional.ofNullable(cachedWarps.get(normalizedName));
+        }
+
         return findWarpInYaml(normalizedName);
     }
 
@@ -65,6 +75,7 @@ public final class WarpStorage {
 
         saveCost(configuration, warpPath + ".costs." + normalizedMethod, WarpCost.of(type != CostType.NONE, type, amount, item));
         storage.saveYamlStorage(configuration);
+        updateCachedWarp(configuration, normalizedName);
         return true;
     }
 
@@ -79,10 +90,15 @@ public final class WarpStorage {
 
         configuration.set(warpPath + ".permission", permission == null ? "" : permission);
         storage.saveYamlStorage(configuration);
+        updateCachedWarp(configuration, normalizedName);
         return true;
     }
 
     public List<String> listWarpNames() {
+        if (plugin.getOptimizationSettings().cacheWarps()) {
+            return new ArrayList<>(cachedWarps.keySet());
+        }
+
         return listWarpNamesFromYaml();
     }
 
@@ -101,6 +117,9 @@ public final class WarpStorage {
         saveCost(configuration, path + ".costs.portal", warp.portalCost());
 
         storage.saveYamlStorage(configuration);
+        if (plugin.getOptimizationSettings().cacheWarps()) {
+            cachedWarps.put(warp.name(), warp);
+        }
     }
 
     private Optional<SavedWarp> findWarpInYaml(String name) {
@@ -111,18 +130,7 @@ public final class WarpStorage {
             return Optional.empty();
         }
 
-        return Optional.of(new SavedWarp(
-                name,
-                configuration.getString(path + ".world", ""),
-                configuration.getDouble(path + ".x"),
-                configuration.getDouble(path + ".y"),
-                configuration.getDouble(path + ".z"),
-                (float) configuration.getDouble(path + ".yaw"),
-                (float) configuration.getDouble(path + ".pitch"),
-                configuration.getString(path + ".permission", ""),
-                loadCost(configuration, path + ".costs.teleport", "warp-defaults.costs.teleport"),
-                loadCost(configuration, path + ".costs.portal", "warp-defaults.costs.portal")
-        ));
+        return Optional.of(loadWarp(configuration, name));
     }
 
     private boolean deleteWarpFromYaml(String name) throws IOException {
@@ -135,6 +143,7 @@ public final class WarpStorage {
 
         configuration.set(path, null);
         storage.saveYamlStorage(configuration);
+        cachedWarps.remove(name);
         return true;
     }
 
@@ -179,6 +188,49 @@ public final class WarpStorage {
         }
     }
 
+    private void reloadCache() {
+        cachedWarps.clear();
+
+        if (!plugin.getOptimizationSettings().cacheWarps()) {
+            return;
+        }
+
+        FileConfiguration configuration = storage.loadYamlStorage();
+        ConfigurationSection section = configuration.getConfigurationSection("warps");
+
+        if (section == null) {
+            return;
+        }
+
+        for (String warpName : section.getKeys(false)) {
+            String normalizedName = normalizeName(warpName);
+            cachedWarps.put(normalizedName, loadWarp(configuration, normalizedName));
+        }
+    }
+
+    private void updateCachedWarp(FileConfiguration configuration, String name) {
+        if (plugin.getOptimizationSettings().cacheWarps()) {
+            cachedWarps.put(name, loadWarp(configuration, name));
+        }
+    }
+
+    private SavedWarp loadWarp(FileConfiguration configuration, String name) {
+        String path = "warps." + name;
+
+        return new SavedWarp(
+                name,
+                configuration.getString(path + ".world", ""),
+                configuration.getDouble(path + ".x"),
+                configuration.getDouble(path + ".y"),
+                configuration.getDouble(path + ".z"),
+                (float) configuration.getDouble(path + ".yaw"),
+                (float) configuration.getDouble(path + ".pitch"),
+                configuration.getString(path + ".permission", ""),
+                loadCost(configuration, path + ".costs.teleport", "warp-defaults.costs.teleport"),
+                loadCost(configuration, path + ".costs.portal", "warp-defaults.costs.portal")
+        );
+    }
+
     private void saveCost(FileConfiguration configuration, String path, WarpCost cost) {
         configuration.set(path + ".enabled", cost.enabled());
         configuration.set(path + ".type", cost.type().name().toLowerCase());
@@ -197,6 +249,6 @@ public final class WarpStorage {
     }
 
     private String normalizeName(String name) {
-        return name.toLowerCase().replaceAll("[^a-z0-9_-]", "");
+        return name.toLowerCase(Locale.ROOT).replaceAll("[^a-z0-9_-]", "");
     }
 }

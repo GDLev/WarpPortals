@@ -1,5 +1,6 @@
 package dev.gdlev.warpPortals.Features;
 
+import dev.gdlev.warpPortals.WarpPortals;
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
 import org.bukkit.Material;
@@ -12,10 +13,15 @@ import org.bukkit.entity.Player;
 import org.bukkit.persistence.PersistentDataType;
 import org.bukkit.plugin.java.JavaPlugin;
 import org.bukkit.scheduler.BukkitRunnable;
+import org.bukkit.scheduler.BukkitTask;
 import org.bukkit.util.Vector;
 import org.joml.Matrix4f;
 
+import java.util.HashMap;
+import java.util.Iterator;
 import java.util.Locale;
+import java.util.Map;
+import java.util.UUID;
 import java.util.concurrent.ThreadLocalRandom;
 
 public class ShowPortal {
@@ -26,9 +32,21 @@ public class ShowPortal {
     private static final float DISTANCE_FROM_PLAYER = 1.5f;
     private static final int ANIMATION_TICKS = 10;
     private static final int HOLD_TICKS = 60;
+    private static final long DISPLAY_TRANSITION_START_DELAY_TICKS = 2L;
     private static final float START_HEIGHT = 0.01f;
     private static final String PORTAL_ENTITY_TAG = "warp_portals_display";
     private static final String PORTAL_ENTITY_KEY = "portal_display";
+    private static final Map<UUID, ParticleEffect> PARTICLE_EFFECTS = new HashMap<>();
+    private static BukkitTask particleTask;
+
+    public static void stopParticleEffects() {
+        if (particleTask != null) {
+            particleTask.cancel();
+            particleTask = null;
+        }
+
+        PARTICLE_EFFECTS.clear();
+    }
 
     public static int removeLeftoverDisplays(JavaPlugin plugin) {
         int removed = 0;
@@ -107,7 +125,13 @@ public class ShowPortal {
         PortalSettings settings = PortalSettings.from(plugin);
         Location loc = display.getLocation();
 
-        animateHeight(plugin, display, settings.height(), settings.startHeight(), portalRotation, settings);
+        if (!settings.animationEnabled()) {
+            playConfiguredSound(plugin, loc, "portal.sounds.close", "BLOCK_PORTAL_TRAVEL", 0.4, 1.8, "portal close");
+            display.remove();
+            return;
+        }
+
+        animateHeight(plugin, display, settings.height(), settings.startHeight(), portalRotation, settings, 0L);
 
         playConfiguredSound(plugin, loc, "portal.sounds.close", "BLOCK_PORTAL_TRAVEL", 0.4, 1.8, "portal close");
 
@@ -139,30 +163,30 @@ public class ShowPortal {
             markPortalDisplay(plugin, blockDisplay);
 
             blockDisplay.setInterpolationDelay(0);
-            blockDisplay.setInterpolationDuration(1);
+            blockDisplay.setInterpolationDuration(settings.animationEnabled() && settings.useDisplayTransitions() ? 0 : 1);
 
-            blockDisplay.setTransformationMatrix(createTransform(settings.width(), settings.startHeight(), settings.depth(), portalRotation));
+            float initialHeight = settings.animationEnabled() ? settings.startHeight() : settings.height();
+            blockDisplay.setTransformationMatrix(createTransform(settings.width(), initialHeight, settings.depth(), portalRotation));
         });
 
         playConfiguredSound(plugin, loc, "portal.sounds.open", "BLOCK_PORTAL_TRIGGER", 0.7, 1.6, "portal open");
-        spawnPortalParticles(loc, portalRotation);
-        startGatewayParticles(plugin, display, loc, portalRotation);
+        spawnPortalParticles(plugin, loc, portalRotation, settings.depth());
+        startGatewayParticles(plugin, display, loc, portalRotation, settings.depth());
 
-        animateHeight(plugin, display, settings.startHeight(), settings.height(), portalRotation, settings);
+        long openingDelayTicks = settings.useDisplayTransitions() ? DISPLAY_TRANSITION_START_DELAY_TICKS : 0L;
+        if (settings.animationEnabled()) {
+            animateHeight(plugin, display, settings.startHeight(), settings.height(), portalRotation, settings, openingDelayTicks);
+        }
 
         if (autoClose) {
-            Bukkit.getScheduler().runTaskLater(plugin, () -> {
-                if (!display.isValid()) return;
-
-                animateHeight(plugin, display, settings.height(), settings.startHeight(), portalRotation, settings);
-                playConfiguredSound(plugin, loc, "portal.sounds.close", "BLOCK_PORTAL_TRAVEL", 0.4, 1.8, "portal close");
-            }, 1L + settings.animationTicks() + settings.holdTicks());
-
-            Bukkit.getScheduler().runTaskLater(plugin, () -> {
-                if (display.isValid()) {
-                    display.remove();
-                }
-            }, 1L + settings.animationTicks() + settings.holdTicks() + settings.animationTicks());
+            long openingDurationTicks = settings.animationEnabled()
+                    ? openingDelayTicks + settings.animationTicks()
+                    : 0L;
+            Bukkit.getScheduler().runTaskLater(
+                    plugin,
+                    () -> close(plugin, display, portalRotation),
+                    openingDurationTicks + settings.holdTicks()
+            );
         }
 
         return display;
@@ -220,7 +244,34 @@ public class ShowPortal {
         }
     }
 
-    private static void animateHeight(JavaPlugin plugin, BlockDisplay display, float fromHeight, float toHeight, float rotationY, PortalSettings settings) {
+    private static void animateHeight(
+            JavaPlugin plugin,
+            BlockDisplay display,
+            float fromHeight,
+            float toHeight,
+            float rotationY,
+            PortalSettings settings,
+            long displayTransitionDelay
+    ) {
+        if (settings.useDisplayTransitions()) {
+            Runnable applyTargetTransform = () -> {
+                if (!display.isValid()) {
+                    return;
+                }
+
+                display.setInterpolationDelay(0);
+                display.setInterpolationDuration(settings.animationTicks());
+                display.setTransformationMatrix(createTransform(settings.width(), toHeight, settings.depth(), rotationY));
+            };
+
+            if (displayTransitionDelay > 0L) {
+                Bukkit.getScheduler().runTaskLater(plugin, applyTargetTransform, displayTransitionDelay);
+            } else {
+                applyTargetTransform.run();
+            }
+            return;
+        }
+
         new BukkitRunnable() {
             private int tick = 0;
 
@@ -288,7 +339,13 @@ public class ShowPortal {
         return (float) Math.toRadians(-yawDegrees);
     }
 
-    private static void startGatewayParticles(JavaPlugin plugin, BlockDisplay display, Location loc, float rotationY) {
+    private static void startGatewayParticles(JavaPlugin plugin, BlockDisplay display, Location loc, float rotationY, float depth) {
+        if (useSharedParticleScheduler(plugin)) {
+            PARTICLE_EFFECTS.put(display.getUniqueId(), ParticleEffect.create(display, loc, rotationY, depth));
+            startSharedParticleTask(plugin);
+            return;
+        }
+
         new BukkitRunnable() {
             @Override
             public void run() {
@@ -301,18 +358,59 @@ public class ShowPortal {
                 World world = center.getWorld();
                 if (world == null) return;
 
-                spawnOrientedParticles(world, center, rotationY, Particle.PORTAL, 28, 0.85, 0.85, DEPTH, 0.06);
-                spawnOrientedParticles(world, center, rotationY, Particle.REVERSE_PORTAL, 10, 0.55, 0.75, DEPTH, 0.03);
-                spawnOrientedParticles(world, center, rotationY, Particle.END_ROD, 2, 0.7, 0.75, DEPTH, 0.01);
+                spawnOrientedParticles(world, center, rotationY, Particle.PORTAL, 28, 0.85, 0.85, depth, 0.06);
+                spawnOrientedParticles(world, center, rotationY, Particle.REVERSE_PORTAL, 10, 0.55, 0.75, depth, 0.03);
+                spawnOrientedParticles(world, center, rotationY, Particle.END_ROD, 2, 0.7, 0.75, depth, 0.01);
             }
         }.runTaskTimer(plugin, 0L, 3L);
     }
 
-    private static void spawnPortalParticles(Location loc, float rotationY) {
+    private static void startSharedParticleTask(JavaPlugin plugin) {
+        if (particleTask != null) {
+            return;
+        }
+
+        particleTask = Bukkit.getScheduler().runTaskTimer(plugin, () -> {
+            Iterator<ParticleEffect> iterator = PARTICLE_EFFECTS.values().iterator();
+
+            while (iterator.hasNext()) {
+                ParticleEffect effect = iterator.next();
+
+                if (!effect.display().isValid()) {
+                    iterator.remove();
+                    continue;
+                }
+
+                effect.spawn();
+            }
+
+            if (PARTICLE_EFFECTS.isEmpty() && particleTask != null) {
+                particleTask.cancel();
+                particleTask = null;
+            }
+        }, 0L, 3L);
+    }
+
+    private static void spawnPortalParticles(JavaPlugin plugin, Location loc, float rotationY, float depth) {
         World world = loc.getWorld();
         if (world == null) return;
 
-        spawnOrientedParticles(world, loc, rotationY, Particle.PORTAL, 80, 1.0, 1.0, DEPTH, 0.15);
+        if (useSharedParticleScheduler(plugin)) {
+            double cos = Math.cos(rotationY);
+            double sin = Math.sin(rotationY);
+            spawnOrientedParticlesOptimized(world, loc, cos, sin, Particle.PORTAL, 80, 1.0, 1.0, depth, 0.15);
+            return;
+        }
+
+        spawnOrientedParticles(world, loc, rotationY, Particle.PORTAL, 80, 1.0, 1.0, depth, 0.15);
+    }
+
+    private static boolean useSharedParticleScheduler(JavaPlugin plugin) {
+        if (plugin instanceof WarpPortals warpPortals) {
+            return warpPortals.getOptimizationSettings().sharedParticleScheduler();
+        }
+
+        return plugin.getConfig().getBoolean("optimizations.shared-particle-scheduler", true);
     }
 
     private static void spawnOrientedParticles(
@@ -349,6 +447,33 @@ public class ShowPortal {
         );
     }
 
+    private static void spawnOrientedParticlesOptimized(
+            World world,
+            Location center,
+            double cos,
+            double sin,
+            Particle particle,
+            int count,
+            double halfWidth,
+            double halfHeight,
+            double depth,
+            double speed
+    ) {
+        ThreadLocalRandom random = ThreadLocalRandom.current();
+        Location particleLocation = center.clone();
+
+        for (int i = 0; i < count; i++) {
+            double localX = random.nextDouble(-halfWidth, halfWidth);
+            double localY = random.nextDouble(-halfHeight, halfHeight);
+            double localZ = random.nextDouble(-depth / 2.0, depth / 2.0);
+
+            particleLocation.setX(center.getX() + localX * cos + localZ * sin);
+            particleLocation.setY(center.getY() + localY);
+            particleLocation.setZ(center.getZ() - localX * sin + localZ * cos);
+            world.spawnParticle(particle, particleLocation, 1, 0.0, 0.0, 0.0, speed);
+        }
+    }
+
     private static Matrix4f createTransform(float width, float height, float depth, float rotationY) {
         return new Matrix4f()
                 .rotateY(rotationY)
@@ -364,6 +489,8 @@ public class ShowPortal {
             float startHeight,
             int animationTicks,
             int holdTicks,
+            boolean animationEnabled,
+            boolean useDisplayTransitions,
             Material material
     ) {
         private static PortalSettings from(JavaPlugin plugin) {
@@ -381,8 +508,40 @@ public class ShowPortal {
                     (float) plugin.getConfig().getDouble("portal.start-height", START_HEIGHT),
                     Math.max(1, plugin.getConfig().getInt("portal.animation-ticks", ANIMATION_TICKS)),
                     Math.max(1, plugin.getConfig().getInt("portal.hold-ticks", HOLD_TICKS)),
+                    plugin.getConfig().getBoolean("portal.animation-enabled", true),
+                    plugin.getConfig().getBoolean("portal.use-display-transitions", true),
                     material
             );
+        }
+    }
+
+    private record ParticleEffect(
+            BlockDisplay display,
+            Location center,
+            double cos,
+            double sin,
+            double depth
+    ) {
+        private static ParticleEffect create(BlockDisplay display, Location center, float rotationY, double depth) {
+            return new ParticleEffect(
+                    display,
+                    center.clone(),
+                    Math.cos(rotationY),
+                    Math.sin(rotationY),
+                    depth
+            );
+        }
+
+        private void spawn() {
+            World world = center.getWorld();
+
+            if (world == null) {
+                return;
+            }
+
+            spawnOrientedParticlesOptimized(world, center, cos, sin, Particle.PORTAL, 28, 0.85, 0.85, depth, 0.06);
+            spawnOrientedParticlesOptimized(world, center, cos, sin, Particle.REVERSE_PORTAL, 10, 0.55, 0.75, depth, 0.03);
+            spawnOrientedParticlesOptimized(world, center, cos, sin, Particle.END_ROD, 2, 0.7, 0.75, depth, 0.01);
         }
     }
 }

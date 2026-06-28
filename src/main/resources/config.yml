@@ -55,6 +55,11 @@ portal:
   # Set to 0 to disable this check.
   min-distance: 10
   start-height: 0.01
+  # Set to false to make portals appear and disappear immediately.
+  animation-enabled: true
+  # Let Minecraft clients animate display entities using one start and end update.
+  # Set to false to use the legacy server-side animation updated every tick.
+  use-display-transitions: true
   animation-ticks: 10
   hold-ticks: 60
   # Use none to disable any sound.
@@ -94,3 +99,14 @@ warp-defaults:
       type: xp
       amount: 0
       item: DIAMOND
+
+# Advanced settings can perform better or worse depending on the server and its
+# individual needs. If you are unsure, do not change them. The defaults are
+# already the best choice for most users.
+optimizations:
+  cache-warps: true
+  shared-particle-scheduler: true
+  portal-spatial-index: true
+  cache-portal-calculations: true
+  cache-settings: true
+  cache-vault-provider: true

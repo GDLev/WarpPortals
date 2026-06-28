@@ -11,8 +11,8 @@ import org.bukkit.util.Vector;
 
 import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.Iterator;
 import java.util.Locale;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
@@ -24,9 +24,11 @@ public final class PortalManager {
     private final CopyOnWriteArrayList<PortalPair> portalPairs = new CopyOnWriteArrayList<>();
     private final Map<UUID, Long> cooldowns = new ConcurrentHashMap<>();
     private final Map<PortalKey, SharedExitPortal> sharedExitPortals = new HashMap<>();
+    private final Map<UUID, Map<Long, List<PortalSide>>> portalIndex = new HashMap<>();
     private static final long CLOSE_AFTER_OWNER_USE_DELAY_TICKS = 5L;
     private BukkitTask task;
     private long currentTick;
+    private PortalTeleportSettings cachedSettings;
 
     public PortalManager(WarpPortals plugin) {
         this.plugin = plugin;
@@ -43,6 +45,11 @@ public final class PortalManager {
             task = null;
         }
 
+        portalPairs.forEach(pair -> {
+            if (pair.entranceDisplay() != null && pair.entranceDisplay().isValid()) {
+                pair.entranceDisplay().remove();
+            }
+        });
         portalPairs.clear();
         sharedExitPortals.values().forEach(portal -> {
             if (portal.display().isValid()) {
@@ -50,6 +57,7 @@ public final class PortalManager {
             }
         });
         sharedExitPortals.clear();
+        portalIndex.clear();
         cooldowns.clear();
     }
 
@@ -73,21 +81,24 @@ public final class PortalManager {
             BlockDisplay entranceDisplay,
             String teleportMessage
     ) {
-        PortalTeleportSettings settings = PortalTeleportSettings.from(plugin);
+        PortalTeleportSettings settings = settings();
         long removeAtTick = currentTick() + settings.portalLifetimeTicks();
         SharedExitPortal exitPortal = getOrCreateExitPortal(exitBottom, exitRotation, removeAtTick);
 
-        portalPairs.add(new PortalPair(
+        PortalPair pair = new PortalPair(
                 owner.getUniqueId(),
                 entranceCenter.clone(),
                 entranceRotation,
+                PortalArea.create(entranceCenter, entranceRotation),
                 exitPortal,
                 entranceCenter.clone().subtract(0, settings.height() / 2.0, 0),
                 removeAtTick,
                 settings.onlyOwner(),
                 entranceDisplay,
                 teleportMessage
-        ));
+        );
+        portalPairs.add(pair);
+        indexPair(pair);
     }
 
     public boolean preparePortalCreation(Player owner) {
@@ -135,13 +146,14 @@ public final class PortalManager {
     }
 
     private void start() {
-        PortalTeleportSettings settings = PortalTeleportSettings.from(plugin);
+        cachedSettings = PortalTeleportSettings.from(plugin);
+        PortalTeleportSettings settings = settings();
         currentTick = 0L;
         task = Bukkit.getScheduler().runTaskTimer(plugin, this::tick, 1L, settings.checkIntervalTicks());
     }
 
     private void tick() {
-        PortalTeleportSettings settings = PortalTeleportSettings.from(plugin);
+        PortalTeleportSettings settings = settings();
         currentTick += settings.checkIntervalTicks();
         long now = currentTick();
         cleanupExpiredPortals(now);
@@ -153,46 +165,31 @@ public final class PortalManager {
                 continue;
             }
 
-            for (PortalPair pair : portalPairs) {
-                if (!pair.canUse(player)) {
-                    continue;
-                }
+            Location playerLocation = player.getLocation();
+            PortalHit hit = plugin.getOptimizationSettings().portalSpatialIndex()
+                    ? findIndexedPortal(player, playerLocation, settings)
+                    : findPortal(player, playerLocation, portalPairs, settings);
 
-                Location target = null;
+            if (hit == null) {
+                continue;
+            }
 
-                if (isInsidePortal(player.getLocation(), pair.entranceCenter(), pair.entranceRotation(), settings)) {
-                    target = pair.exitPortal().bottom();
-                } else if (!settings.oneWay() && isInsidePortal(player.getLocation(), pair.exitPortal().center(), pair.exitPortal().rotation(), settings)) {
-                    target = pair.entranceBottom();
-                }
+            player.teleport(hit.target().clone());
+            if (hit.pair().teleportMessage() != null) {
+                player.sendMessage(hit.pair().teleportMessage());
+            }
+            cooldowns.put(player.getUniqueId(), now + settings.cooldownTicks());
 
-                if (target == null) {
-                    continue;
-                }
-
-                player.teleport(target.clone());
-                if (pair.teleportMessage() != null) {
-                    player.sendMessage(pair.teleportMessage());
-                }
-                cooldowns.put(player.getUniqueId(), now + settings.cooldownTicks());
-
-                if (settings.closeAfterOwnerUse() && player.getUniqueId().equals(pair.ownerId())) {
-                    closePair(pair);
-                }
-
-                break;
+            if (settings.closeAfterOwnerUse() && player.getUniqueId().equals(hit.pair().ownerId())) {
+                closePair(hit.pair());
             }
         }
     }
 
     private void cleanupExpiredPortals(long now) {
-        Iterator<PortalPair> iterator = portalPairs.iterator();
-
-        while (iterator.hasNext()) {
-            PortalPair pair = iterator.next();
-
+        for (PortalPair pair : portalPairs) {
             if (pair.removeAtTick() <= now) {
-                portalPairs.remove(pair);
+                removePair(pair);
             }
         }
 
@@ -200,7 +197,74 @@ public final class PortalManager {
         cooldowns.entrySet().removeIf(entry -> entry.getValue() <= now);
     }
 
-    private boolean isInsidePortal(Location playerLocation, Location portalCenter, float rotationY, PortalTeleportSettings settings) {
+    private PortalHit findIndexedPortal(Player player, Location playerLocation, PortalTeleportSettings settings) {
+        World world = playerLocation.getWorld();
+
+        if (world == null) {
+            return null;
+        }
+
+        int playerChunkX = playerLocation.getBlockX() >> 4;
+        int playerChunkZ = playerLocation.getBlockZ() >> 4;
+        int chunkRadius = Math.max(1, (int) Math.ceil((settings.width() / 2.0 + settings.activationDepth()) / 16.0));
+        Map<Long, List<PortalSide>> worldIndex = portalIndex.get(world.getUID());
+
+        if (worldIndex == null) {
+            return null;
+        }
+
+        for (int chunkX = playerChunkX - chunkRadius; chunkX <= playerChunkX + chunkRadius; chunkX++) {
+            for (int chunkZ = playerChunkZ - chunkRadius; chunkZ <= playerChunkZ + chunkRadius; chunkZ++) {
+                List<PortalSide> sides = worldIndex.get(chunkKey(chunkX, chunkZ));
+
+                if (sides == null) {
+                    continue;
+                }
+
+                for (PortalSide side : sides) {
+                    PortalPair pair = side.pair();
+
+                    if (!pair.canUse(player) || (!side.entrance() && settings.oneWay())) {
+                        continue;
+                    }
+
+                    PortalArea area = side.entrance() ? pair.entranceArea() : pair.exitPortal().area();
+
+                    if (isInsidePortal(playerLocation, area, settings)) {
+                        return new PortalHit(pair, side.entrance() ? pair.exitPortal().bottom() : pair.entranceBottom());
+                    }
+                }
+            }
+        }
+
+        return null;
+    }
+
+    private PortalHit findPortal(Player player, Location playerLocation, Iterable<PortalPair> pairs, PortalTeleportSettings settings) {
+        for (PortalPair pair : pairs) {
+            if (!pair.canUse(player)) {
+                continue;
+            }
+
+            if (isInsidePortal(playerLocation, pair.entranceArea(), settings)) {
+                return new PortalHit(pair, pair.exitPortal().bottom());
+            }
+
+            if (!settings.oneWay() && isInsidePortal(playerLocation, pair.exitPortal().area(), settings)) {
+                return new PortalHit(pair, pair.entranceBottom());
+            }
+        }
+
+        return null;
+    }
+
+    private boolean isInsidePortal(Location playerLocation, PortalArea area, PortalTeleportSettings settings) {
+        if (plugin.getOptimizationSettings().cachePortalCalculations()) {
+            return area.contains(playerLocation, settings.width(), settings.height(), settings.activationDepth());
+        }
+
+        Location portalCenter = area.center();
+        float rotationY = area.rotation();
         World world = portalCenter.getWorld();
 
         if (world == null || playerLocation.getWorld() == null || !world.equals(playerLocation.getWorld())) {
@@ -233,7 +297,7 @@ public final class PortalManager {
     }
 
     private void closePair(PortalPair pair) {
-        portalPairs.remove(pair);
+        removePair(pair);
         Bukkit.getScheduler().runTaskLater(plugin, () -> {
             ShowPortal.close(plugin, pair.entranceDisplay(), pair.entranceRotation());
             closeSharedExitPortalIfUnused(pair.exitPortal(), 0L);
@@ -241,7 +305,7 @@ public final class PortalManager {
     }
 
     private void closePairNow(PortalPair pair) {
-        portalPairs.remove(pair);
+        removePair(pair);
         ShowPortal.close(plugin, pair.entranceDisplay(), pair.entranceRotation());
         closeSharedExitPortalIfUnused(pair.exitPortal(), 0L);
     }
@@ -274,11 +338,13 @@ public final class PortalManager {
         }
 
         BlockDisplay display = ShowPortal.openPersistentAtFromBottom(plugin, exitBottom, exitBottom.getYaw());
+        Location center = ShowPortal.centerFromBottom(plugin, exitBottom);
         SharedExitPortal created = new SharedExitPortal(
                 key,
-                ShowPortal.centerFromBottom(plugin, exitBottom),
+                center,
                 exitBottom.clone(),
                 exitRotation,
+                PortalArea.create(center, exitRotation),
                 display,
                 removeAtTick
         );
@@ -321,10 +387,81 @@ public final class PortalManager {
         return false;
     }
 
+    private void indexPair(PortalPair pair) {
+        if (!plugin.getOptimizationSettings().portalSpatialIndex()) {
+            return;
+        }
+
+        addToIndex(pair.entranceArea().center(), new PortalSide(pair, true));
+        addToIndex(pair.exitPortal().area().center(), new PortalSide(pair, false));
+    }
+
+    private void addToIndex(Location location, PortalSide side) {
+        World world = location.getWorld();
+
+        if (world == null) {
+            return;
+        }
+
+        portalIndex
+                .computeIfAbsent(world.getUID(), ignored -> new HashMap<>())
+                .computeIfAbsent(chunkKey(location.getBlockX() >> 4, location.getBlockZ() >> 4), ignored -> new ArrayList<>())
+                .add(side);
+    }
+
+    private void removePair(PortalPair pair) {
+        if (!portalPairs.remove(pair)) {
+            return;
+        }
+
+        removeFromIndex(pair.entranceArea().center(), pair);
+        removeFromIndex(pair.exitPortal().area().center(), pair);
+    }
+
+    private void removeFromIndex(Location location, PortalPair pair) {
+        World world = location.getWorld();
+
+        if (world == null) {
+            return;
+        }
+
+        Map<Long, List<PortalSide>> worldIndex = portalIndex.get(world.getUID());
+
+        if (worldIndex == null) {
+            return;
+        }
+
+        long key = chunkKey(location.getBlockX() >> 4, location.getBlockZ() >> 4);
+        List<PortalSide> sides = worldIndex.get(key);
+
+        if (sides == null) {
+            return;
+        }
+
+        sides.removeIf(side -> side.pair() == pair);
+        if (sides.isEmpty()) {
+            worldIndex.remove(key);
+        }
+        if (worldIndex.isEmpty()) {
+            portalIndex.remove(world.getUID());
+        }
+    }
+
+    private long chunkKey(int chunkX, int chunkZ) {
+        return ((long) chunkX << 32) ^ (chunkZ & 0xffffffffL);
+    }
+
+    private PortalTeleportSettings settings() {
+        return plugin.getOptimizationSettings().cacheSettings()
+                ? cachedSettings
+                : PortalTeleportSettings.from(plugin);
+    }
+
     private record PortalPair(
             UUID ownerId,
             Location entranceCenter,
             float entranceRotation,
+            PortalArea entranceArea,
             SharedExitPortal exitPortal,
             Location entranceBottom,
             long removeAtTick,
@@ -342,14 +479,16 @@ public final class PortalManager {
         private final Location center;
         private final Location bottom;
         private final float rotation;
+        private final PortalArea area;
         private final BlockDisplay display;
         private long removeAtTick;
 
-        private SharedExitPortal(PortalKey key, Location center, Location bottom, float rotation, BlockDisplay display, long removeAtTick) {
+        private SharedExitPortal(PortalKey key, Location center, Location bottom, float rotation, PortalArea area, BlockDisplay display, long removeAtTick) {
             this.key = key;
             this.center = center;
             this.bottom = bottom;
             this.rotation = rotation;
+            this.area = area;
             this.display = display;
             this.removeAtTick = removeAtTick;
         }
@@ -368,6 +507,10 @@ public final class PortalManager {
 
         private float rotation() {
             return rotation;
+        }
+
+        private PortalArea area() {
+            return area;
         }
 
         private BlockDisplay display() {
@@ -403,6 +546,49 @@ public final class PortalManager {
         }
     }
 
+    private record PortalArea(
+            Location center,
+            float rotation,
+            UUID worldId,
+            double cos,
+            double sin
+    ) {
+        private static PortalArea create(Location center, float rotation) {
+            World world = center.getWorld();
+            return new PortalArea(
+                    center.clone(),
+                    rotation,
+                    world == null ? new UUID(0L, 0L) : world.getUID(),
+                    Math.cos(rotation),
+                    Math.sin(rotation)
+            );
+        }
+
+        private boolean contains(Location location, double width, double height, double activationDepth) {
+            World world = location.getWorld();
+
+            if (world == null || !world.getUID().equals(worldId)) {
+                return false;
+            }
+
+            double offsetX = location.getX() - center.getX();
+            double offsetY = location.getY() - center.getY();
+            double offsetZ = location.getZ() - center.getZ();
+            double localX = offsetX * cos - offsetZ * sin;
+            double localZ = offsetX * sin + offsetZ * cos;
+
+            return Math.abs(localX) <= width / 2.0
+                    && Math.abs(offsetY) <= height / 2.0
+                    && Math.abs(localZ) <= activationDepth;
+        }
+    }
+
+    private record PortalSide(PortalPair pair, boolean entrance) {
+    }
+
+    private record PortalHit(PortalPair pair, Location target) {
+    }
+
     private record PortalTeleportSettings(
             double width,
             double height,
@@ -417,11 +603,16 @@ public final class PortalManager {
         private static PortalTeleportSettings from(WarpPortals plugin) {
             int animationTicks = Math.max(1, plugin.getConfig().getInt("portal.animation-ticks", 10));
             int holdTicks = Math.max(1, plugin.getConfig().getInt("portal.hold-ticks", 60));
+            boolean animationEnabled = plugin.getConfig().getBoolean("portal.animation-enabled", true);
+            int openingDelayTicks = plugin.getConfig().getBoolean("portal.use-display-transitions", true) ? 2 : 0;
+            int portalLifetimeTicks = animationEnabled
+                    ? openingDelayTicks + animationTicks + holdTicks + animationTicks
+                    : holdTicks;
 
             return new PortalTeleportSettings(
                     plugin.getConfig().getDouble("portal.width", 1.25),
                     plugin.getConfig().getDouble("portal.height", 2.5),
-                    1 + animationTicks + holdTicks + animationTicks,
+                    portalLifetimeTicks,
                     Math.max(1, plugin.getConfig().getLong("portal.teleport.check-interval-ticks", 2)),
                     Math.max(1, plugin.getConfig().getLong("portal.teleport.cooldown-ticks", 40)),
                     plugin.getConfig().getDouble("portal.teleport.activation-depth", 0.7),

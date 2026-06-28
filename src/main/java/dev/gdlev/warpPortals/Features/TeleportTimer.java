@@ -23,9 +23,15 @@ public final class TeleportTimer implements Listener {
 
     private final WarpPortals plugin;
     private final Map<UUID, PendingTeleport> pendingTeleports = new ConcurrentHashMap<>();
+    private TeleportSettings cachedSettings;
 
     public TeleportTimer(WarpPortals plugin) {
         this.plugin = plugin;
+        reload();
+    }
+
+    public void reload() {
+        cachedSettings = TeleportSettings.from(plugin);
     }
 
     public void start(Player player, String warpName, Location destination, WarpCost cost) {
@@ -33,7 +39,7 @@ public final class TeleportTimer implements Listener {
     }
 
     public void start(Player player, String warpName, Location destination, WarpCost cost, String successMessage) {
-        start(player, warpName, destination, cost, successMessage, plugin.getConfig().getDouble("teleport.delay-seconds", 0.0));
+        start(player, warpName, destination, cost, successMessage, delaySeconds());
     }
 
     public void start(Player player, String warpName, Location destination, WarpCost cost, String successMessage, double delaySeconds) {
@@ -94,7 +100,7 @@ public final class TeleportTimer implements Listener {
 
     @EventHandler
     public void onMove(PlayerMoveEvent event) {
-        if (!plugin.getConfig().getBoolean("teleport.cancel-on-move", true)) {
+        if (!cancelOnMove()) {
             return;
         }
 
@@ -196,10 +202,11 @@ public final class TeleportTimer implements Listener {
 
     private void sendCountdown(Player player, long remainingTicks) {
         String time = formatTime(remainingTicks);
+        TeleportSettings settings = settings();
 
         playCountdownSound(player);
 
-        if (plugin.getConfig().getBoolean("teleport.title", true)) {
+        if (settings.title()) {
             player.sendTitle(
                     plugin.lang("messages.teleport-title"),
                     plugin.lang("messages.teleport-subtitle", "{time}", time),
@@ -209,7 +216,7 @@ public final class TeleportTimer implements Listener {
             );
         }
 
-        if (plugin.getConfig().getBoolean("teleport.actionbar", true)) {
+        if (settings.actionbar()) {
             player.spigot().sendMessage(
                     ChatMessageType.ACTION_BAR,
                     TextComponent.fromLegacyText(plugin.lang("messages.teleport-actionbar", "{time}", time))
@@ -247,6 +254,40 @@ public final class TeleportTimer implements Listener {
         return String.format("%.1f", seconds);
     }
 
+    private TeleportSettings settings() {
+        return plugin.getOptimizationSettings().cacheSettings()
+                ? cachedSettings
+                : TeleportSettings.from(plugin);
+    }
+
+    private double delaySeconds() {
+        return plugin.getOptimizationSettings().cacheSettings()
+                ? cachedSettings.delaySeconds()
+                : Math.max(0.0, plugin.getConfig().getDouble("teleport.delay-seconds", 0.0));
+    }
+
+    private boolean cancelOnMove() {
+        return plugin.getOptimizationSettings().cacheSettings()
+                ? cachedSettings.cancelOnMove()
+                : plugin.getConfig().getBoolean("teleport.cancel-on-move", true);
+    }
+
     private record PendingTeleport(Location startLocation, Location destination, BukkitTask task) {
+    }
+
+    private record TeleportSettings(
+            double delaySeconds,
+            boolean cancelOnMove,
+            boolean title,
+            boolean actionbar
+    ) {
+        private static TeleportSettings from(WarpPortals plugin) {
+            return new TeleportSettings(
+                    Math.max(0.0, plugin.getConfig().getDouble("teleport.delay-seconds", 0.0)),
+                    plugin.getConfig().getBoolean("teleport.cancel-on-move", true),
+                    plugin.getConfig().getBoolean("teleport.title", true),
+                    plugin.getConfig().getBoolean("teleport.actionbar", true)
+            );
+        }
     }
 }

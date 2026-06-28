@@ -8,10 +8,8 @@ import dev.gdlev.warpPortals.Features.ShowPortal;
 import dev.gdlev.warpPortals.Features.TeleportTimer;
 import dev.gdlev.warpPortals.Storage.StorageHelper;
 import dev.gdlev.warpPortals.Storage.WarpStorage;
-import net.kyori.adventure.text.Component;
-import net.kyori.adventure.text.minimessage.MiniMessage;
-import net.kyori.adventure.text.serializer.legacy.LegacyComponentSerializer;
 import org.bstats.bukkit.Metrics;
+import org.bukkit.ChatColor;
 import org.bukkit.configuration.file.FileConfiguration;
 import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.plugin.java.JavaPlugin;
@@ -23,12 +21,6 @@ import java.util.Objects;
 
 public final class WarpPortals extends JavaPlugin {
 
-    private static final MiniMessage MINI_MESSAGE = MiniMessage.miniMessage();
-    private static final LegacyComponentSerializer LEGACY_SERIALIZER = LegacyComponentSerializer.builder()
-            .hexColors()
-            .useUnusualXRepeatedCharacterHexFormat()
-            .build();
-
     private File langFile;
     private FileConfiguration langConfig;
     private StorageHelper storage;
@@ -37,10 +29,17 @@ public final class WarpPortals extends JavaPlugin {
     private TeleportTimer teleportTimer;
     private CostService costService;
     private CustomCommandManager customCommandManager;
+    private OptimizationSettings optimizationSettings;
+    private MessageFormatter messageFormatter;
 
     @Override
     public void onEnable() {
+        if (!initializeMessageFormatter()) {
+            return;
+        }
+
         reloadDefaultConfig();
+        optimizationSettings = OptimizationSettings.from(this);
         setupMetrics();
         reloadLang();
         storage = new StorageHelper(this);
@@ -82,15 +81,21 @@ public final class WarpPortals extends JavaPlugin {
         if (customCommandManager != null) {
             customCommandManager.stop();
         }
+
+        ShowPortal.stopParticleEffects();
     }
 
     public void reloadPluginFiles() {
         reloadDefaultConfig();
+        optimizationSettings = OptimizationSettings.from(this);
         reloadLang();
         storage.reload();
         warpStorage.reload();
+        ShowPortal.stopParticleEffects();
         portalManager.reload();
         teleportTimer.stop();
+        teleportTimer.reload();
+        costService.reload();
         customCommandManager.reload();
     }
 
@@ -116,6 +121,10 @@ public final class WarpPortals extends JavaPlugin {
 
     public TeleportTimer getTeleportTimer() {
         return teleportTimer;
+    }
+
+    public OptimizationSettings getOptimizationSettings() {
+        return optimizationSettings;
     }
 
     public String lang(String path) {
@@ -147,8 +156,26 @@ public final class WarpPortals extends JavaPlugin {
     }
 
     public String miniMessage(String message) {
-        Component component = MINI_MESSAGE.deserialize(message);
-        return LEGACY_SERIALIZER.serialize(component);
+        return messageFormatter.format(message);
+    }
+
+    private boolean initializeMessageFormatter() {
+        try {
+            messageFormatter = new MessageFormatter();
+            return true;
+        } catch (LinkageError exception) {
+            getServer().getConsoleSender().sendMessage(
+                    ChatColor.RED + "[WarpPortals] Adventure/MiniMessage API was not found on this server."
+            );
+            getServer().getConsoleSender().sendMessage(
+                    ChatColor.RED + "[WarpPortals] You downloaded the wrong plugin build. Install the Spigot version of WarpPortals instead."
+            );
+            getServer().getConsoleSender().sendMessage(
+                    ChatColor.RED + "[WarpPortals] The plugin has been disabled."
+            );
+            getServer().getPluginManager().disablePlugin(this);
+            return false;
+        }
     }
 
     private void reloadDefaultConfig() {

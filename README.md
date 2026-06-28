@@ -152,6 +152,20 @@ commands:
 
 When this is `true`, `/warp <name>` teleports directly. When this is `false`, `/warp <name>` opens a portal instead.
 
+### Optimizations
+
+```yaml
+optimizations:
+  cache-warps: true
+  shared-particle-scheduler: true
+  portal-spatial-index: true
+  cache-portal-calculations: true
+  cache-settings: true
+  cache-vault-provider: true
+```
+
+These advanced settings are enabled with defaults suitable for most servers. Change them only when profiling or a specific server setup shows that a different mode works better.
+
 ### Portal Settings
 
 ```yaml
@@ -162,11 +176,15 @@ portal:
   height: 2.5
   distance-from-player: 1.5
   min-distance: 10
+  animation-enabled: true
+  use-display-transitions: true
   animation-ticks: 10
   hold-ticks: 60
 ```
 
 `portal.min-distance` prevents players from opening a portal when they are already too close to the destination. Set it to `0` to disable that check.
+
+`portal.use-display-transitions` lets Minecraft clients animate each display entity from a start transform to an end transform. Disable it only when you need the legacy server-side animation updated every tick.
 
 </details>
 
@@ -597,10 +615,12 @@ portal:
 
 ```yaml
 portal:
+  animation-enabled: true
+  use-display-transitions: true
   animation-ticks: 10
 ```
 
-Lower values are faster. Higher values are slower.
+Set `animation-enabled` to `false` to make portals appear and disappear immediately. Lower `animation-ticks` values are faster, while higher values are slower.
 
 ### How do I change how long portals stay open?
 

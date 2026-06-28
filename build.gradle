@@ -7,7 +7,7 @@ plugins {
 }
 
 group = 'dev.gdlev'
-version = '0.1'
+version = '0.2'
 
 def runMinecraftVersion = (findProperty("mcVersion") ?: "1.19.4").toString()
 
