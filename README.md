@@ -716,7 +716,7 @@ Missing keys will be copied from English.
 I tried to anticipate every possible scenario that could cause errors or bugs, but testing it alone might have missed something. If you find a bug, PLEASE report it immediately to the issue tracker on the project's GitHub pin or on my Discord.
 Thank you ❤️
 
-> If you find this plugin helpful, unique, or just plain cool, please support me by following this project on Modrinth. If you'd like even more help, check out my Kofi.
+> If you find this plugin helpful, unique, or simply cool, please consider supporting me by following the project on Modrinth. If you’d like to offer even more support, you can also check out my Ko-fi. Every bit of support motivates me to keep working on this plugin.
 > Any support motivates me to continue working on this plugin.
 
 [![Support me on Ko-fi](https://ko-fi.com/img/githubbutton_sm.svg)](https://ko-fi.com/gdlev)
